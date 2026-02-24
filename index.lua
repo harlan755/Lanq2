@@ -1,105 +1,73 @@
--- Ini adalah contoh konsep script Delta Roblox.
--- Anda perlu mengisi bagian-bagian spesifik dari BotGhost Anda.
-
+-- DELTA EXECUTOR SCRIPT
+local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
+local LocalPlayer = Players.LocalPlayer
 
--- Ganti ini dengan Webhook URL yang Anda dapatkan dari BotGhost
--- Webhook ini harus dikonfigurasi di BotGhost untuk mengedit pesan tertentu.
-local DISCORD_WEBHOOK_URL = "cf8416acd12a00caeaf1b764b5f11ce56f00406f1c01fc18624a67c212d95870"
+local webhook = "cf8416acd12a00caeaf1b764b5f11ce56f00406f1c01fc18624a67c212d95870"
 
--- ID pesan Discord yang ingin Anda update.
--- Anda perlu mendapatkan ID pesan ini setelah bot Discord Anda pertama kali mengirim pesan placeholder.
-local MESSAGE_ID_TO_UPDATE = "BOT SEDANG BERJALAN"
-
--- Fungsi untuk mengirim status ke Discord
-local function sendDiscordStatus(isOnline)
-    local statusMessage
-    local color
-
-    if isOnline then
-        statusMessage = "✅ Server Delta: ONLINE!"
-        color = 65280 -- Hijau
-    else
-        statusMessage = "❌ Server Delta: OFFLINE!"
-        color = 16711680 -- Merah
-    end
-
-    local payload = {
-        -- Beberapa webhook Discord mendukung editing pesan langsung dengan ID pesan
-        -- Anda perlu memeriksa apakah BotGhost/webhook Anda mendukung ini.
-        -- Jika tidak, Anda mungkin perlu BotGhost untuk mengirim payload ini sebagai content dari pesan baru
-        -- dan menghapus pesan lama (jika BotGhost memiliki fungsi itu).
-        -- Namun, tujuan Anda adalah mengupdate 1 pesan, jadi kita coba dulu dengan editing.
-        ["content"] = "", -- Mungkin perlu dikosongkan jika menggunakan embeds
-        ["embeds"] = {{
-            ["title"] = "Status Server Delta",
-            ["description"] = statusMessage,
-            ["color"] = color,
-            ["timestamp"] = DateTime.now():ToIsoDate(),
-            ["footer"] = {
-                ["text"] = "Update terakhir"
-            }
-        }}
+-- FUNCTION KIRIM KE DISCORD
+local function sendDiscord(message)
+    local data = {
+        ["content"] = message
     }
 
-    local jsonData = HttpService:JSONEncode(payload)
+    local json = HttpService:JSONEncode(data)
 
-    pcall(function()
-        -- Perhatikan bahwa metode HTTP untuk EDIT pesan adalah PATCH.
-        -- Namun, webhook Discord standar biasanya hanya menerima POST.
-        -- Jika BotGhost Anda menyediakan endpoint khusus untuk edit pesan, itu mungkin mendukung PATCH/PUT.
-        -- Jika tidak, Anda mungkin perlu membuat BotGhost Anda menginterpretasikan payload POST ini
-        -- sebagai instruksi untuk mengedit pesan dengan ID tertentu.
-        HttpService:RequestAsync(
-            {
-                Url = DISCORD_WEBHOOK_URL .. "/messages/" .. MESSAGE_ID_TO_UPDATE, -- Contoh URL untuk PATCH/PUT
-                Method = "PATCH", -- Coba PATCH, jika tidak berhasil, kembali ke POST dan biarkan BotGhost yang handle
-                Headers = {
-                    ["Content-Type"] = "application/json"
-                },
-                Body = jsonData
-            }
-        )
-        print("Status dikirim ke Discord:", statusMessage)
-    end)
-end
-
--- Mendeteksi jumlah pemain
-local players = game:GetService("Players")
-local lastStatusOnline = false -- Menyimpan status terakhir yang dilaporkan
-
-local function checkServerStatus()
-    local currentPlayers = #players:GetPlayers()
-    local isCurrentlyOnline = (currentPlayers > 0)
-
-    if isCurrentlyOnline ~= lastStatusOnline then
-        sendDiscordStatus(isCurrentlyOnline)
-        lastStatusOnline = isCurrentlyOnline
+    if syn and syn.request then
+        syn.request({
+            Url = webhook,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = json
+        })
+    elseif request then
+        request({
+            Url = webhook,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = json
+        })
     end
 end
 
--- Loop untuk mengecek status setiap beberapa detik
-while true do
-    checkServerStatus()
-    task.wait(30) -- Cek setiap 30 detik
+-- NOTIF SAAT KAMU MASUK GAME
+sendDiscord("🟢 "..LocalPlayer.Name.." EXECUTED SCRIPT")
+
+-- DETEKSI PLAYER JOIN
+Players.PlayerAdded:Connect(function(player)
+    sendDiscord("🟢 "..player.Name.." JOIN SERVER")
+end)
+
+-- DETEKSI PLAYER LEAVE
+Players.PlayerRemoving:Connect(function(player)
+    sendDiscord("🔴 "..player.Name.." LEFT SERVER")
+end)
+
+-- STATUS DI ATAS KEPALA (ONLINE)
+local function addStatus(character)
+    local head = character:WaitForChild("Head")
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Size = UDim2.new(0, 150, 0, 40)
+    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = head
+
+    local text = Instance.new("TextLabel")
+    text.Size = UDim2.new(1, 0, 1, 0)
+    text.BackgroundTransparency = 1
+    text.TextScaled = true
+    text.Text = "🟢 ONLINE"
+    text.TextColor3 = Color3.fromRGB(0,255,0)
+    text.Parent = billboard
 end
 
--- Anda juga bisa menambahkan PlayerAdded/PlayerRemoving event untuk update yang lebih instan
-players.PlayerAdded:Connect(function()
-    sendDiscordStatus(true)
-    lastStatusOnline = true
-end)
+if LocalPlayer.Character then
+    addStatus(LocalPlayer.Character)
+end
 
-players.PlayerRemoving:Connect(function()
-    -- Beri waktu sebentar jika pemain terakhir baru saja keluar,
-    -- untuk memastikan tidak ada pemain lain yang masuk dalam hitungan milidetik.
-    task.wait(2)
-    if #players:GetPlayers() == 0 then
-        sendDiscordStatus(false)
-        lastStatusOnline = false
-    end
-end)
-
--- Panggil sekali saat script dimulai untuk mengirim status awal
-checkServerStatus()
-
+LocalPlayer.CharacterAdded:Connect(addStatus)
