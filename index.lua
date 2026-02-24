@@ -1,60 +1,83 @@
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 
--- Ganti dengan Webhook BotGhost-mu
-local webhookURL = "https://api.botghost.com/webhook/1475964119181168751/z9gyi7vvk3cer1ghf93xh"
+-- Discord Webhook URL
+local WEBHOOK_URL = "https://discord.com/api/webhooks/1476004191058264168/ZwalmFfACOQntKSceu4nqnu7lR7JH-BKRVVp1C4sXvU6yLbx6AKp2g-XzI5ELRsxklfz"
 
--- Simpan message ID untuk update pesan
-local messageID
+-- Ambil bola status
+local statusBall = Workspace:WaitForChild("StatusBall")
 
--- Fungsi untuk kirim atau update webhook
-local function sendOrUpdateWebhook(content)
-    local data = HttpService:JSONEncode({ content = content })
+-- Fungsi kirim ke Discord
+local function sendDiscordMessage(username, status, activity)
+    local data = {
+        ["username"] = "BOT STATUSv2",
+        ["embeds"] = {{
+            ["title"] = username .. " status update",
+            ["description"] = "**Status:** "..status.."\n**Activity:** "..(activity or "Tidak ada"),
+            ["color"] = status == "Offline" and 15158332 or 3066993,
+            ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        }}
+    }
+    
+    local jsonData = HttpService:JSONEncode(data)
+    
+    local success, err = pcall(function()
+        HttpService:PostAsync(WEBHOOK_URL, jsonData, Enum.HttpContentType.ApplicationJson)
+    end)
+    
+    if not success then
+        warn("Gagal mengirim webhook:", err)
+    end
+end
 
-    local success, response = pcall(function()
-        if messageID then
-            -- PATCH ke pesan yang sudah ada
-            return HttpService:RequestAsync({
-                Url = webhookURL.."/messages/"..messageID,
-                Method = "PATCH",
-                Headers = { ["Content-Type"] = "application/json" },
-                Body = data
-            })
-        else
-            -- POST pertama kali
-            return HttpService:PostAsync(webhookURL, data, Enum.HttpContentType.ApplicationJson, false)
+-- Fungsi ubah warna bola
+local function setBallColor(color)
+    statusBall.BrickColor = BrickColor.new(color)
+end
+
+-- Fungsi kedip bola
+local function blinkBall(color1, color2, interval)
+    spawn(function()
+        while true do
+            statusBall.BrickColor = BrickColor.new(color1)
+            wait(interval)
+            statusBall.BrickColor = BrickColor.new(color2)
+            wait(interval)
         end
     end)
+end
 
-    if success then
-        if not messageID then
-            local decode = HttpService:JSONDecode(response or "{}")
-            messageID = decode.id
-        end
+-- Track jumlah pemain online
+local function updateBallStatus()
+    if #Players:GetPlayers() > 0 then
+        -- Hijau berkedip
+        blinkBall("Lime green", "Really black", 0.5)
     else
-        warn("Gagal kirim/update webhook: "..tostring(response))
+        -- Merah berkedip
+        blinkBall("Bright red", "Really black", 0.5)
     end
 end
 
--- Fungsi update status online/offline semua player
-local function updatePlayerStatus()
-    local text = "**Status Player Saat Ini:**\n"
-    for _, player in pairs(Players:GetPlayers()) do
-        text = text .. "- " .. player.Name .. " : Online\n"
-    end
-    if #Players:GetPlayers() == 0 then
-        text = text .. "Tidak ada player online."
-    end
-    sendOrUpdateWebhook(text)
-end
+-- Event ketika pemain join
+Players.PlayerAdded:Connect(function(player)
+    sendDiscordMessage(player.Name, "Online", "Masuk ke game")
+    updateBallStatus()
+    
+    -- Track aktivitas, contoh chat
+    player.Chatted:Connect(function(msg)
+        sendDiscordMessage(player.Name, "Sedang melakukan aktivitas", msg)
+    end)
+end)
 
--- Event player masuk
-Players.PlayerAdded:Connect(updatePlayerStatus)
--- Event player keluar
-Players.PlayerRemoving:Connect(updatePlayerStatus)
+-- Event ketika pemain leave
+Players.PlayerRemoving:Connect(function(player)
+    sendDiscordMessage(player.Name, "Offline", "Keluar dari game / Disconnect")
+    
+    -- Update status bola jika semua offline
+    wait(0.1) -- tunggu sedikit untuk mengupdate list pemain
+    updateBallStatus()
+end)
 
--- Update otomatis tiap 10 detik
-while true do
-    task.wait(10)
-    updatePlayerStatus()
-end
+-- Set status awal
+updateBallStatus()
