@@ -1,51 +1,60 @@
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 
-local webhookURL = "https://auth.platorelay.com/a?d=4mmTaMjo9Krkbs2CjAIVrYUdAs5drX313iemsEWMy3JUXzhPH9xchhqcS7AA6RvAGZGRuApa2oWBAC7BprRqIhU1BDj5P6ePrnvhPQp6IHuKF1OZqu6ymSrp1V5rh8IKoHNhzfYRlMRCdGmcIKBHvqDhVMx1S8uhJR6wvhxKJsMmytbkXqYmglIZBfx4GP8PRzVZp3vT2VG0IvNoIyd4XkgYR3ouIo2cUzlK1Mzs2uEnCkSnNrGLgnEH9vkYMrOICOcqx5s7412qOKJkjxMx3wgUSgYEnuQL7aJr6I7XToc7RCKiYxJpaMPhH3jNsMWoX4ajzyzwTGNTol6138q4FS9qcAqmhX6AEoQ14OIOPE2SEzwZVd3pWKErkAYXu2A7lW2v6WJdLH7LfM4fSA1ue4VLkPrODWcih5uTAfYjJgvwecmxCI7MC0dvwegHz9"
+-- Ganti dengan Webhook BotGhost-mu
+local webhookURL = "https://api.botghost.com/webhook/1475964119181168751/z9gyi7vvk3cer1ghf93xh"
 
-local function sendToDiscord(data)
-    local jsonData = HttpService:JSONEncode(data)
-    
-    pcall(function()
-        HttpService:PostAsync(
-            webhookURL,
-            jsonData,
-            Enum.HttpContentType.ApplicationJson
-        )
+-- Simpan message ID untuk update pesan
+local messageID
+
+-- Fungsi untuk kirim atau update webhook
+local function sendOrUpdateWebhook(content)
+    local data = HttpService:JSONEncode({ content = content })
+
+    local success, response = pcall(function()
+        if messageID then
+            -- PATCH ke pesan yang sudah ada
+            return HttpService:RequestAsync({
+                Url = webhookURL.."/messages/"..messageID,
+                Method = "PATCH",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = data
+            })
+        else
+            -- POST pertama kali
+            return HttpService:PostAsync(webhookURL, data, Enum.HttpContentType.ApplicationJson, false)
+        end
     end)
-end
 
-local function getInventory(player)
-    local items = {}
-    
-    for _, tool in pairs(player.Backpack:GetChildren()) do
-        table.insert(items, tool.Name)
+    if success then
+        if not messageID then
+            local decode = HttpService:JSONDecode(response or "{}")
+            messageID = decode.id
+        end
+    else
+        warn("Gagal kirim/update webhook: "..tostring(response))
     end
-    
-    return table.concat(items, ", ")
 end
 
-local function updateStatus(player, status)
-    local inventory = getInventory(player)
-    
-    local data = {
-        content = "**Status Bot:** " .. status ..
-                  "\n**Player:** " .. player.Name ..
-                  "\n**Inventory:** " .. (inventory ~= "" and inventory or "Kosong")
-    }
-    
-    sendToDiscord(data)
-end
-
-Players.PlayerAdded:Connect(function(player)
-    updateStatus(player, "Online")
-    
-    while player.Parent do
-        task.wait(1)
-        updateStatus(player, "Online")
+-- Fungsi update status online/offline semua player
+local function updatePlayerStatus()
+    local text = "**Status Player Saat Ini:**\n"
+    for _, player in pairs(Players:GetPlayers()) do
+        text = text .. "- " .. player.Name .. " : Online\n"
     end
-end)
+    if #Players:GetPlayers() == 0 then
+        text = text .. "Tidak ada player online."
+    end
+    sendOrUpdateWebhook(text)
+end
 
-Players.PlayerRemoving:Connect(function(player)
-    updateStatus(player, "Offline / Disconnect")
-end)
+-- Event player masuk
+Players.PlayerAdded:Connect(updatePlayerStatus)
+-- Event player keluar
+Players.PlayerRemoving:Connect(updatePlayerStatus)
+
+-- Update otomatis tiap 10 detik
+while true do
+    task.wait(10)
+    updatePlayerStatus()
+end
