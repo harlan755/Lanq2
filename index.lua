@@ -1,73 +1,51 @@
--- DELTA EXECUTOR SCRIPT
-local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
-local LocalPlayer = Players.LocalPlayer
+local Players = game:GetService("Players")
 
-local webhook = "cf8416acd12a00caeaf1b764b5f11ce56f00406f1c01fc18624a67c212d95870"
+local webhookURL = "https://auth.platorelay.com/a?d=4mmTaMjo9Krkbs2CjAIVrYUdAs5drX313iemsEWMy3JUXzhPH9xchhqcS7AA6RvAGZGRuApa2oWBAC7BprRqIhU1BDj5P6ePrnvhPQp6IHuKF1OZqu6ymSrp1V5rh8IKoHNhzfYRlMRCdGmcIKBHvqDhVMx1S8uhJR6wvhxKJsMmytbkXqYmglIZBfx4GP8PRzVZp3vT2VG0IvNoIyd4XkgYR3ouIo2cUzlK1Mzs2uEnCkSnNrGLgnEH9vkYMrOICOcqx5s7412qOKJkjxMx3wgUSgYEnuQL7aJr6I7XToc7RCKiYxJpaMPhH3jNsMWoX4ajzyzwTGNTol6138q4FS9qcAqmhX6AEoQ14OIOPE2SEzwZVd3pWKErkAYXu2A7lW2v6WJdLH7LfM4fSA1ue4VLkPrODWcih5uTAfYjJgvwecmxCI7MC0dvwegHz9"
 
--- FUNCTION KIRIM KE DISCORD
-local function sendDiscord(message)
-    local data = {
-        ["content"] = message
-    }
+local function sendToDiscord(data)
+    local jsonData = HttpService:JSONEncode(data)
+    
+    pcall(function()
+        HttpService:PostAsync(
+            webhookURL,
+            jsonData,
+            Enum.HttpContentType.ApplicationJson
+        )
+    end)
+end
 
-    local json = HttpService:JSONEncode(data)
-
-    if syn and syn.request then
-        syn.request({
-            Url = webhook,
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json"
-            },
-            Body = json
-        })
-    elseif request then
-        request({
-            Url = webhook,
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json"
-            },
-            Body = json
-        })
+local function getInventory(player)
+    local items = {}
+    
+    for _, tool in pairs(player.Backpack:GetChildren()) do
+        table.insert(items, tool.Name)
     end
+    
+    return table.concat(items, ", ")
 end
 
--- NOTIF SAAT KAMU MASUK GAME
-sendDiscord("🟢 "..LocalPlayer.Name.." EXECUTED SCRIPT")
+local function updateStatus(player, status)
+    local inventory = getInventory(player)
+    
+    local data = {
+        content = "**Status Bot:** " .. status ..
+                  "\n**Player:** " .. player.Name ..
+                  "\n**Inventory:** " .. (inventory ~= "" and inventory or "Kosong")
+    }
+    
+    sendToDiscord(data)
+end
 
--- DETEKSI PLAYER JOIN
 Players.PlayerAdded:Connect(function(player)
-    sendDiscord("🟢 "..player.Name.." JOIN SERVER")
+    updateStatus(player, "Online")
+    
+    while player.Parent do
+        task.wait(1)
+        updateStatus(player, "Online")
+    end
 end)
 
--- DETEKSI PLAYER LEAVE
 Players.PlayerRemoving:Connect(function(player)
-    sendDiscord("🔴 "..player.Name.." LEFT SERVER")
+    updateStatus(player, "Offline / Disconnect")
 end)
-
--- STATUS DI ATAS KEPALA (ONLINE)
-local function addStatus(character)
-    local head = character:WaitForChild("Head")
-
-    local billboard = Instance.new("BillboardGui")
-    billboard.Size = UDim2.new(0, 150, 0, 40)
-    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
-    billboard.AlwaysOnTop = true
-    billboard.Parent = head
-
-    local text = Instance.new("TextLabel")
-    text.Size = UDim2.new(1, 0, 1, 0)
-    text.BackgroundTransparency = 1
-    text.TextScaled = true
-    text.Text = "🟢 ONLINE"
-    text.TextColor3 = Color3.fromRGB(0,255,0)
-    text.Parent = billboard
-end
-
-if LocalPlayer.Character then
-    addStatus(LocalPlayer.Character)
-end
-
-LocalPlayer.CharacterAdded:Connect(addStatus)
