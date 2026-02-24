@@ -3,7 +3,7 @@ local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 
-local webhook = "WEBHOOK_URL_KAMU"
+local webhook = "https://discord.com/api/webhooks/1475954913015234671/ORf3ZgZTW-phbx9okcBtRspQV-V_FqhlQGHzaYVd_lf-6Os0-ZGes-88An65Bm2kJcVD"
 
 -- FUNCTION KIRIM KE DISCORD
 local function sendDiscord(message)
