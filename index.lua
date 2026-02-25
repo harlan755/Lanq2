@@ -1,83 +1,48 @@
-local HttpService = game:GetService("HttpService")
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
+-- Delta Executor Roblox Script untuk Discord Webhook
 
--- Discord Webhook URL
-local WEBHOOK_URL = "https://discord.com/api/webhooks/1476004191058264168/ZwalmFfACOQntKSceu4nqnu7lR7JH-BKRVVp1C4sXvU6yLbx6AKp2g-XzI5ELRsxklfz"
+local webhookUrl = "https://discord.com/api/webhooks/1476004191058264168/ZwalmFfACOQntKSceu4nqnu7lR7JH-BKRVVp1C4sXvU6yLbx6AKp2g-XzI5ELRsxklfz" -- Ganti dengan URL Discord Webhook Anda
 
--- Ambil bola status
-local statusBall = Workspace:WaitForChild("StatusBall")
+local playerName = game.Players.LocalPlayer.Name
 
--- Fungsi kirim ke Discord
-local function sendDiscordMessage(username, status, activity)
+local function sendWebhook(status)
     local data = {
-        ["username"] = "BOT STATUSv2",
         ["embeds"] = {{
-            ["title"] = username .. " status update",
-            ["description"] = "**Status:** "..status.."\n**Activity:** "..(activity or "Tidak ada"),
-            ["color"] = status == "Offline" and 15158332 or 3066993,
-            ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
+            ["title"] = "Roblox Status Notifikasi",
+            ["description"] = "**" .. playerName .. "** sekarang " .. status .. "!",
+            ["color"] = 16776960 -- Warna kuning untuk notifikasi
         }}
     }
-    
-    local jsonData = HttpService:JSONEncode(data)
-    
-    local success, err = pcall(function()
-        HttpService:PostAsync(WEBHOOK_URL, jsonData, Enum.HttpContentType.ApplicationJson)
+    if status == "online" then
+        data.embeds[1].color = 65280 -- Warna hijau untuk online
+    elseif status == "offline" or status == "terputus" then
+        data.embeds[1].color = 16711680 -- Warna merah untuk offline/terputus
+    end
+
+    local http = game:GetService("HttpService")
+    local encodedData = http:JSONEncode(data)
+
+    local success, response = pcall(function()
+        http:PostAsync(webhookUrl, encodedData, "application/json")
     end)
-    
+
     if not success then
-        warn("Gagal mengirim webhook:", err)
+        warn("Gagal mengirim webhook: " .. response)
     end
 end
 
--- Fungsi ubah warna bola
-local function setBallColor(color)
-    statusBall.BrickColor = BrickColor.new(color)
-end
+-- Saat pemain bergabung (online)
+sendWebhook("online")
 
--- Fungsi kedip bola
-local function blinkBall(color1, color2, interval)
-    spawn(function()
-        while true do
-            statusBall.BrickColor = BrickColor.new(color1)
-            wait(interval)
-            statusBall.BrickColor = BrickColor.new(color2)
-            wait(interval)
-        end
-    end)
-end
-
--- Track jumlah pemain online
-local function updateBallStatus()
-    if #Players:GetPlayers() > 0 then
-        -- Hijau berkedip
-        blinkBall("Lime green", "Really black", 0.5)
-    else
-        -- Merah berkedip
-        blinkBall("Bright red", "Really black", 0.5)
+-- Saat pemain meninggalkan game (offline)
+game.Players.LocalPlayer.AncestryChanged:Connect(function()
+    if not game.Players:FindFirstChild(playerName) then
+        sendWebhook("offline")
     end
-end
-
--- Event ketika pemain join
-Players.PlayerAdded:Connect(function(player)
-    sendDiscordMessage(player.Name, "Online", "Masuk ke game")
-    updateBallStatus()
-    
-    -- Track aktivitas, contoh chat
-    player.Chatted:Connect(function(msg)
-        sendDiscordMessage(player.Name, "Sedang melakukan aktivitas", msg)
-    end)
 end)
 
--- Event ketika pemain leave
-Players.PlayerRemoving:Connect(function(player)
-    sendDiscordMessage(player.Name, "Offline", "Keluar dari game / Disconnect")
-    
-    -- Update status bola jika semua offline
-    wait(0.1) -- tunggu sedikit untuk mengupdate list pemain
-    updateBallStatus()
+-- Saat koneksi terputus (disconnect)
+game:GetService("Players").LocalPlayer.PlayerRemoving:Connect(function()
+    sendWebhook("terputus")
 end)
 
--- Set status awal
-updateBallStatus()
+print("Script Discord Webhook berjalan.")
